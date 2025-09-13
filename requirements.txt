@@ -1,6 +1,0 @@
-Flask
-tensorflow
-Pillow
-numpy
-Werkzeug
-gunicorn
