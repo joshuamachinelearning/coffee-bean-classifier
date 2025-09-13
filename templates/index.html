@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coffee Bean Quality Classifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        coffee: {
+                            100: '#f7f3f0',
+                            150: '#f0e6d6',
+                            200: '#e8d5bb',
+                            300: '#d4b896',
+                            400: '#c19a6b',
+                            500: '#8B4513',
+                            600: '#7a3e11',
+                            700: '#68360f',
+                            800: '#562d0c',
+                            900: '#44240a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gradient-to-br from-coffee-100 to-coffee-200 min-h-screen">
+    <!-- Header -->
+    <div class="bg-white shadow-lg border-b-4 border-coffee-500">
+        <div class="container mx-auto px-4 py-6 text-center">
+            <h1 class="text-4xl font-bold text-coffee-800 mb-2">
+                <i class="fas fa-seedling text-coffee-600 mr-3"></i>
+                Coffee Bean Quality Classifier
+            </h1>
+            <p class="text-coffee-600 text-lg">Upload an image to determine if your coffee beans are good or bad quality
+            </p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+
+        <!-- Model Selection & Upload Section -->
+        <div class="max-w-4xl mx-auto mb-10">
+            <!-- Model Dropdown -->
+            <div class="bg-white rounded-2xl shadow-xl p-6 mb-6 border-t-4 border-coffee-500">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-coffee-700 mb-2">
+                            <i class="fas fa-brain mr-2 text-coffee-500"></i>
+                            Select Model
+                        </h3>
+                        <p class="text-coffee-500 text-sm">Choose which model to use for prediction</p>
+                        <p class="mt-2 text-sm text-red-600">
+                        ⚠️ This app is designed for DenseNet models (DenseNet121, DenseNet169, DenseNet201).  
+                        Uploading or selecting a custom CNN model may cause errors because it likely uses a different input size or preprocessing pipeline.
+                        </p>
+                    </div>
+                    <div class="mt-4 md:mt-0">
+                        <select id="model-dropdown"
+                            class="bg-coffee-100 border border-coffee-300 text-coffee-800 px-4 py-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-coffee-500">
+                            {% for m in models %}
+                            <option value="{{m}}" {% if m==default_model %}selected{% endif %}>{{m}}</option>
+                            {% endfor %}
+                        </select>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+
+            <!-- Upload New Model (Password Protected) -->
+            <div class="bg-white rounded-2xl shadow-xl p-6 border-t-4 border-coffee-500">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h3 class="text-2xl font-semibold text-coffee-700 mb-2">
+                            <i class="fas fa-upload mr-2 text-coffee-500"></i>
+                            Upload New Model
+                        </h3>
+                        <p class="text-coffee-500 text-sm">Upload a new .h5 model (requires password)</p>
+                    </div>
+                    <div class="mt-4 md:mt-0 flex flex-col md:flex-row md:items-center gap-3">
+                        <input type="file" id="new-model-file" accept=".h5"
+                            class="bg-coffee-50 border border-coffee-300 text-coffee-800 px-3 py-2 rounded-lg shadow-sm">
+                        <input type="password" id="model-password" placeholder="Password"
+                            class="bg-coffee-50 border border-coffee-300 text-coffee-800 px-3 py-2 rounded-lg shadow-sm">
+                        <button id="upload-model-btn"
+                            class="bg-coffee-500 hover:bg-coffee-600 text-white px-5 py-2 rounded-lg font-semibold transition-colors duration-200 shadow-lg">
+                            <i class="fas fa-cloud-upload-alt mr-2"></i>
+                            Upload
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Upload Section -->
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-8 border-t-4 border-coffee-500">
+            <div class="text-center">
+                <div id="upload-area"
+                    class="border-3 border-dashed border-coffee-300 rounded-xl p-12 transition-all duration-300 hover:border-coffee-500 hover:bg-coffee-50 cursor-pointer">
+                    <i class="fas fa-cloud-upload-alt text-6xl text-coffee-400 mb-4"></i>
+                    <h3 class="text-2xl font-semibold text-coffee-700 mb-2">Upload Your Coffee Bean Image</h3>
+                    <p class="text-coffee-500 mb-6">Drag and drop your image here or click the button to browse</p>
+                    <input type="file" id="file-input" accept="image/*" class="hidden" multiple>
+                    <button id="browse-btn"
+                        class="bg-coffee-500 hover:bg-coffee-600 text-white px-8 py-3 rounded-lg font-semibold transition-colors duration-200 shadow-lg">
+                        <i class="fas fa-folder-open mr-2"></i>
+                        Browse Files
+                    </button>
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="loading" class="hidden mt-8">
+                    <div class="flex justify-center items-center">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-coffee-500"></div>
+                        <span class="ml-3 text-coffee-600 font-semibold">Analyzing your coffee beans...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="hidden space-y-6"></div>
+
+        <!-- Error Section -->
+        <div id="error-message"
+            class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-lg">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle text-xl mr-3"></i>
+                <div>
+                    <h4 class="font-semibold">Error</h4>
+                    <p id="error-text"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-coffee-800 text-coffee-100 py-8 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-lg">
+                <i class="fas fa-coffee mr-2"></i>
+                Powered by Deep Learning & TensorFlow
+            </p>
+            <p class="text-coffee-300 mt-2">Quality coffee starts with quality beans</p>
+        </div>
+    </footer>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const uploadArea = document.getElementById('upload-area');
+        const browseBtn = document.getElementById('browse-btn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const errorMessage = document.getElementById('error-message');
+
+        browseBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            fileInput.click();
+        });
+        fileInput.addEventListener('change', handleFileSelect);
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('border-coffee-500', 'bg-coffee-50');
+        });
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('border-coffee-500', 'bg-coffee-50');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('border-coffee-500', 'bg-coffee-50');
+            const files = Array.from(e.dataTransfer.files);
+            if (files.length > 0) handleFiles(files);
+        });
+
+        function handleFileSelect(e) {
+            const files = Array.from(e.target.files);
+            if (files.length > 0) handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            hideError();
+            hideResults();
+            showLoading();
+
+            const formData = new FormData();
+            files.forEach(file => formData.append('files', file));
+
+            // ADD THIS LINE: send the selected model
+            const selectedModel = document.getElementById('model-dropdown').value;
+            formData.append('model_name', selectedModel);
+
+            fetch('/predict', { method: 'POST', body: formData })
+                .then(r => r.json())
+                .then(data => {
+                    hideLoading();
+                    fileInput.value = ''; // reset input after processing
+                    if (data.error) {
+                        showError(data.error);
+                    } else {
+                        showResults(data.results);
+                    }
+                })
+                .catch(err => {
+                    hideLoading();
+                    showError('An error occurred while processing your images. Please try again.');
+                });
+        }
+
+
+        function showResults(resultsData) {
+            results.innerHTML = '';
+            resultsData.forEach(res => {
+                const el = createResultElement(res);
+                results.appendChild(el);
+            });
+            results.classList.remove('hidden');
+            results.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function createResultElement(result) {
+            const div = document.createElement('div');
+            div.className = 'bg-white rounded-2xl shadow-xl overflow-hidden border-t-4 border-coffee-500 p-6';
+
+            if (result.error) {
+                div.innerHTML = `
+          <div class="flex items-center space-x-4">
+            <i class="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
+            <div>
+              <h3 class="font-semibold text-coffee-800 mb-1">${result.filename}</h3>
+              <p class="text-red-600">${result.error}</p>
+            </div>
+          </div>`;
+                return div;
+            }
+
+            const confidencePercent = parseFloat(result.confidence);
+            const confidenceClass =
+                result.predicted_class === 'Good Coffee Bean'
+                    ? 'text-green-800 bg-green-100'
+                    : 'text-red-800 bg-red-100';
+
+            div.innerHTML = `
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="text-center">
+            <h3 class="text-lg font-semibold text-coffee-700 mb-3">${result.filename}</h3>
+            <div class="bg-coffee-50 rounded-lg p-4 shadow-inner">
+              <img src="${result.image}" class="max-w-full h-auto rounded-lg shadow-md mx-auto max-h-64" alt="">
+            </div>
+          </div>
+          <div class="flex flex-col justify-center">
+            <div class="bg-gradient-to-r from-coffee-100 to-coffee-150 rounded-xl p-6 shadow-inner space-y-4">
+              <h4 class="text-xl font-semibold text-coffee-700 text-center mb-4">
+                <i class="fas fa-microscope mr-2"></i>Prediction Results
+              </h4>
+              <div class="bg-white rounded-lg p-4 shadow-sm">
+                <div class="flex justify-between items-center">
+                  <span class="font-medium text-coffee-600">Classification:</span>
+                  <span class="font-bold text-sm px-3 py-1 rounded-full ${confidenceClass}">${result.predicted_class}</span>
+                </div>
+              </div>
+              <div class="bg-white rounded-lg p-4 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="font-medium text-coffee-600">Confidence:</span>
+                  <span class="font-bold text-coffee-800">${result.confidence}</span>
+                </div>
+                <div class="w-full bg-coffee-200 rounded-full h-2">
+                  <div class="bar-fill bg-gradient-to-r from-coffee-500 to-coffee-600 h-2 rounded-full transition-all duration-1000" style="width:0%"></div>
+                </div>
+              </div>
+            <div class="bg-white rounded-lg p-4 shadow-sm">
+                <div class="flex justify-between items-center">
+                    <span class="font-medium text-coffee-600">Model Used:</span>
+                    <span class="font-bold text-coffee-800">${result.model_used}</span>
+                </div>
+            </div>
+            </div>
+          </div>
+        </div>`;
+
+            // trigger animation on next frame
+            requestAnimationFrame(() => {
+                const fill = div.querySelector('.bar-fill');
+                fill.style.width = confidencePercent + '%';
+            });
+
+            return div;
+        }
+
+        function showLoading() { loading.classList.remove('hidden'); }
+        function hideLoading() { loading.classList.add('hidden'); }
+        function showError(msg) {
+            document.getElementById('error-text').textContent = msg;
+            errorMessage.classList.remove('hidden');
+        }
+        function hideError() { errorMessage.classList.add('hidden'); }
+        function hideResults() { results.classList.add('hidden'); }
+
+        document.getElementById('upload-model-btn').addEventListener('click', () => {
+            const file = document.getElementById('new-model-file').files[0];
+            const pw = document.getElementById('model-password').value;
+            if (!file) {
+                showToast('Select a model file first', 'error');
+                return;
+            }
+            if (!pw) {
+                showToast('Enter password to upload model', 'error');
+                return;
+            }
+
+            const fd = new FormData();
+            fd.append('model_file', file);
+            fd.append('password', pw);
+
+            fetch('/upload_model', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(data.message, 'success');
+                        setTimeout(() => location.reload(), 1500);
+                    } else {
+                        showToast(data.error || 'Upload failed', 'error');
+                    }
+                })
+                .catch(err => {
+                    showToast('Network error', 'error');
+                });
+        });
+
+        document.getElementById('model-dropdown').addEventListener('change', (e) => {
+            const selectedModel = e.target.value;
+            showToast(`Model switched to ${selectedModel}`, 'success');
+        });
+
+
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+
+            // Set message
+            toastMsg.textContent = message;
+
+            // Set colors
+            if (type === 'success') {
+                toast.className = "fixed top-6 right-6 px-6 py-4 rounded-lg shadow-lg text-white z-50 bg-green-600";
+            } else if (type === 'error') {
+                toast.className = "fixed top-6 right-6 px-6 py-4 rounded-lg shadow-lg text-white z-50 bg-red-600";
+            }
+
+            // Show
+            toast.classList.remove('hidden');
+
+            // Hide after 3s
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+
+
+    </script>
+    <!-- Toast Notification -->
+    <div id="toast"
+        class="fixed top-6 right-6 hidden px-6 py-4 rounded-lg shadow-lg text-white z-50 transition-all duration-500 transform translate-y-0 opacity-100">
+        <span id="toast-message"></span>
+    </div>
+
+</body>
+
+</html>

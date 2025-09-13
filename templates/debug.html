@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Coffee Classifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Debug Coffee Bean Classifier</h1>
+        
+        <!-- Test Status -->
+        <div id="status" class="mb-8 p-4 bg-blue-100 rounded">
+            <button onclick="testConnection()" class="bg-blue-500 text-white px-4 py-2 rounded">
+                Test Connection
+            </button>
+            <div id="status-result" class="mt-2"></div>
+        </div>
+        
+        <!-- File Upload -->
+        <div class="bg-white p-6 rounded shadow mb-8">
+            <h2 class="text-xl font-bold mb-4">File Upload Test</h2>
+            
+            <!-- Single File -->
+            <div class="mb-6">
+                <h3 class="font-semibold mb-2">Single File:</h3>
+                <input type="file" id="single-file" accept="image/*" class="mb-2">
+                <button onclick="uploadSingle()" class="bg-green-500 text-white px-4 py-2 rounded">
+                    Upload Single
+                </button>
+            </div>
+            
+            <!-- Multiple Files -->
+            <div class="mb-6">
+                <h3 class="font-semibold mb-2">Multiple Files:</h3>
+                <input type="file" id="multiple-files" accept="image/*" multiple class="mb-2">
+                <button onclick="uploadMultiple()" class="bg-purple-500 text-white px-4 py-2 rounded">
+                    Upload Multiple
+                </button>
+            </div>
+            
+            <!-- Loading -->
+            <div id="loading" class="hidden text-center">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                <p>Processing...</p>
+            </div>
+        </div>
+        
+        <!-- Results -->
+        <div id="results" class="bg-white p-6 rounded shadow">
+            <h2 class="text-xl font-bold mb-4">Results</h2>
+            <div id="results-content">No results yet</div>
+        </div>
+    </div>
+
+    <script>
+        function log(message) {
+            console.log(message);
+            const resultsContent = document.getElementById('results-content');
+            resultsContent.innerHTML = `<pre>${JSON.stringify(message, null, 2)}</pre>`;
+        }
+
+        function showLoading() {
+            document.getElementById('loading').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        async function testConnection() {
+            const statusResult = document.getElementById('status-result');
+            try {
+                const response = await fetch('/test');
+                const data = await response.json();
+                statusResult.innerHTML = `<pre class="text-green-600">${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                statusResult.innerHTML = `<pre class="text-red-600">Error: ${error.message}</pre>`;
+            }
+        }
+
+        async function uploadSingle() {
+            const fileInput = document.getElementById('single-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('No file selected');
+                return;
+            }
+            
+            log(`Uploading single file: ${file.name}`);
+            await uploadFiles([file], 'single');
+        }
+
+        async function uploadMultiple() {
+            const fileInput = document.getElementById('multiple-files');
+            const files = Array.from(fileInput.files);
+            
+            if (files.length === 0) {
+                log('No files selected');
+                return;
+            }
+            
+            log(`Uploading ${files.length} files: ${files.map(f => f.name).join(', ')}`);
+            await uploadFiles(files, 'multiple');
+        }
+
+        async function uploadFiles(files, type) {
+            showLoading();
+            
+            try {
+                const formData = new FormData();
+                
+                // Try both methods
+                if (type === 'single') {
+                    formData.append('file', files[0]);
+                } else {
+                    files.forEach(file => {
+                        formData.append('files', file);
+                    });
+                }
+                
+                log(`Sending ${type} request with FormData...`);
+                
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                log(`Response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                log(`Success! Received data:`);
+                log(data);
+                
+            } catch (error) {
+                log(`Error: ${error.message}`);
+                console.error('Full error:', error);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Test connection on page load
+        window.onload = function() {
+            testConnection();
+        };
+    </script>
+</body>
+</html>
