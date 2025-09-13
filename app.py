@@ -97,22 +97,6 @@ def predict():
 
     return jsonify({'success':True,'results':results})
 
-@app.route('/upload_model',methods=['POST'])
-def upload_model():
-    password=request.form.get('password')
-    if password!=app.config['MODEL_PASSWORD']:
-        return jsonify({'error':'Invalid password'})
-    if 'model_file' not in request.files:
-        return jsonify({'error':'No file uploaded'})
-    file=request.files['model_file']
-    if file.filename=='':
-        return jsonify({'error':'Empty filename'})
-    filename=secure_filename(file.filename)
-    path=os.path.join(app.config['MODEL_FOLDER'],filename)
-    file.save(path)
-    loaded_models.pop(filename,None)  # force reload
-    return jsonify({'success':True,'message':f'Model {filename} uploaded successfully'})
-
 @app.route('/health')
 def health():
     return jsonify({'status':'healthy','models':list(loaded_models.keys())})
