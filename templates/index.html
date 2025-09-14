@@ -49,35 +49,34 @@
     <div class="container mx-auto px-4 py-8 max-w-4xl">
 
         <!-- Model Selection Section -->
-        <div class="max-w-4xl mx-auto mb-10">
+        <!-- <div class="max-w-4xl mx-auto mb-10"> -->
         <!-- Model Dropdown -->
-        <div class="bg-white rounded-2xl shadow-xl p-6 mb-6 border-t-4 border-coffee-500">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between">
-            <div>
-                <h3 class="text-2xl font-semibold text-coffee-700 mb-2">
-                <i class="fas fa-brain mr-2 text-coffee-500"></i>
-                Select Model
-                </h3>
-                <p class="text-coffee-500 text-sm">
-                Choose which model to use for prediction
-                </p>
-                <!-- Only warning, no upload hint -->
-                <p class="mt-2 text-sm text-red-600">
-                ⚠️ This app is designed for DenseNet models (DenseNet121, DenseNet169, DenseNet201).  
-                Selecting a model that was trained with a different architecture may cause errors because it likely uses a different input size or preprocessing pipeline.
-                </p>
-            </div>
-            <div class="mt-4 md:mt-0">
-                <select id="model-dropdown"
-                class="bg-coffee-100 border border-coffee-300 text-coffee-800 px-4 py-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-coffee-500">
-                {% for m in models %}
-                <option value="{{m}}" {% if m==default_model %}selected{% endif %}>{{m}}</option>
-                {% endfor %}
-                </select>
-            </div>
-            </div>
-        </div>
-        </div>
+            <!-- <div class="bg-white rounded-2xl shadow-xl p-6 mb-6 border-t-4 border-coffee-500">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h3 class="text-2xl font-semibold text-coffee-700 mb-2">
+                    <i class="fas fa-brain mr-2 text-coffee-500"></i>
+                    Select Model
+                    </h3>
+                    <p class="text-coffee-500 text-sm">
+                    Choose which model to use for prediction
+                    </p>
+                    <p class="mt-2 text-sm text-red-600">
+                    ⚠️ This app is designed for DenseNet models (DenseNet121, DenseNet169, DenseNet201).  
+                    Selecting a model that was trained with a different architecture may cause errors because it likely uses a different input size or preprocessing pipeline.
+                    </p>
+                </div>
+                <div class="mt-4 md:mt-0">
+                    <select id="model-dropdown"
+                    class="bg-coffee-100 border border-coffee-300 text-coffee-800 px-4 py-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-coffee-500">
+                    {% for m in models %}
+                    <option value="{{m}}" {% if m==default_model %}selected{% endif %}>{{m}}</option>
+                    {% endfor %}
+                    </select>
+                </div>
+                </div>
+            </div> -->
+        <!-- </div> -->
 
 
 
