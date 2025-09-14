@@ -96,8 +96,8 @@ def predict():
         return jsonify({"error": "No files selected"}), 400
 
     # Limit number of files for free tier
-    if len(files) > 5:
-        return jsonify({"error": "Maximum 5 files allowed per request"}), 400
+    if len(files) > 20:
+        return jsonify({"error": "Maximum 20 files allowed per request"}), 400
 
     results = []
     batch_images = []
