@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,114 +22,151 @@
                             800: '#562d0c',
                             900: '#44240a'
                         }
+                    },
+                    animation: {
+                        'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+                        'bounce-gentle': 'bounce-gentle 2s ease-in-out infinite',
+                        'progress-fill': 'progress-fill 1.5s ease-out forwards',
+                        'slide-up': 'slide-up 0.5s ease-out forwards'
+                    },
+                    keyframes: {
+                        'pulse-glow': {
+                            '0%, 100%': { transform: 'scale(1)', opacity: '0.8' },
+                            '50%': { transform: 'scale(1.05)', opacity: '1' }
+                        },
+                        'bounce-gentle': {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-10px)' }
+                        },
+                        'progress-fill': {
+                            '0%': { width: '0%' },
+                            '100%': { width: 'var(--progress-width)' }
+                        },
+                        'slide-up': {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' }
+                        }
                     }
                 }
             }
         }
     </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <style>
+        .progress-bar {
+            transition: width 1.5s cubic-bezier(0.4, 0.0, 0.2, 1);
+        }
+    </style>
 </head>
-
 <body class="bg-gradient-to-br from-coffee-100 to-coffee-200 min-h-screen">
+
     <!-- Header -->
-    <div class="bg-white shadow-lg border-b-4 border-coffee-500">
+    <header class="bg-white shadow-lg border-b-4 border-coffee-500">
         <div class="container mx-auto px-4 py-6 text-center">
             <h1 class="text-4xl font-bold text-coffee-800 mb-2">
                 <i class="fas fa-seedling text-coffee-600 mr-3"></i>
                 Coffee Bean Quality Classifier
             </h1>
-            <p class="text-coffee-600 text-lg">Upload an image to determine if your coffee beans are good or bad quality
+            <p class="text-coffee-600 text-lg mb-3">
+                Upload images to determine if your coffee beans are good or bad quality
             </p>
+            <div class="bg-coffee-50 inline-block px-4 py-2 rounded-full border border-coffee-200">
+                <i class="fas fa-brain text-coffee-500 mr-2"></i>
+                <span class="text-coffee-700 font-medium">Powered by TensorFlow DenseNet</span>
+            </div>
         </div>
-    </div>
+    </header>
 
-    <!-- Main Content -->
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <!-- Main Upload Section -->
+    <main class="container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8 border-t-4 border-coffee-500">
+            <div id="upload-area" class="border-3 border-dashed border-coffee-300 rounded-xl p-12 transition-all duration-300 hover:border-coffee-500 hover:bg-coffee-50 cursor-pointer text-center">
+                <i class="fas fa-cloud-upload-alt text-6xl text-coffee-400 mb-4 transition-transform duration-300 hover:animate-bounce-gentle"></i>
+                <h3 class="text-2xl font-semibold text-coffee-700 mb-2">Upload Your Coffee Bean Images</h3>
+                <p class="text-coffee-500 mb-6">Drag and drop images here or click to browse</p>
+                <input type="file" id="file-input" accept="image/*" multiple class="hidden">
+                <button id="browse-btn" class="bg-coffee-500 hover:bg-coffee-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition-all duration-300 transform hover:scale-105">
+                    <i class="fas fa-folder-open mr-2"></i>
+                    Browse Files
+                </button>
+            </div>
 
-        <!-- Model Selection Section -->
-        <!-- <div class="max-w-4xl mx-auto mb-10"> -->
-        <!-- Model Dropdown -->
-            <!-- <div class="bg-white rounded-2xl shadow-xl p-6 mb-6 border-t-4 border-coffee-500">
-                <div class="flex flex-col md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h3 class="text-2xl font-semibold text-coffee-700 mb-2">
-                    <i class="fas fa-brain mr-2 text-coffee-500"></i>
-                    Select Model
-                    </h3>
-                    <p class="text-coffee-500 text-sm">
-                    Choose which model to use for prediction
-                    </p>
-                    <p class="mt-2 text-sm text-red-600">
-                    ⚠️ This app is designed for DenseNet models (DenseNet121, DenseNet169, DenseNet201).  
-                    Selecting a model that was trained with a different architecture may cause errors because it likely uses a different input size or preprocessing pipeline.
-                    </p>
+            <!-- Enhanced Loading Spinner -->
+            <div id="loading" class="hidden mt-8">
+                <div class="bg-coffee-50 rounded-2xl p-8 border border-coffee-200">
+                    <div class="text-center">
+                        <div class="flex justify-center items-center mb-6">
+                            <div class="relative">
+                                <div class="animate-spin rounded-full h-16 w-16 border-4 border-coffee-200"></div>
+                                <div class="animate-spin rounded-full h-16 w-16 border-4 border-coffee-500 border-t-transparent absolute top-0 left-0"></div>
+                                <i class="fas fa-coffee absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-coffee-600 animate-pulse-glow"></i>
+                            </div>
+                        </div>
+                        <h3 class="text-xl font-semibold text-coffee-700 mb-3">Analyzing Your Coffee Beans</h3>
+                        <div class="space-y-2 text-coffee-600">
+                            <div class="flex items-center justify-center">
+                                <div class="w-2 h-2 bg-coffee-400 rounded-full animate-bounce mr-1"></div>
+                                <div class="w-2 h-2 bg-coffee-400 rounded-full animate-bounce mr-1" style="animation-delay: 0.1s"></div>
+                                <div class="w-2 h-2 bg-coffee-400 rounded-full animate-bounce mr-3" style="animation-delay: 0.2s"></div>
+                                <span id="loading-text">Preprocessing images</span>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <div class="bg-coffee-200 rounded-full h-2 overflow-hidden">
+                                <div id="progress-bar" class="bg-gradient-to-r from-coffee-500 to-coffee-600 h-2 rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
+                            </div>
+                            <p class="text-sm text-coffee-500 mt-2">This may take a few moments...</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="mt-4 md:mt-0">
-                    <select id="model-dropdown"
-                    class="bg-coffee-100 border border-coffee-300 text-coffee-800 px-4 py-2 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-coffee-500">
-                    {% for m in models %}
-                    <option value="{{m}}" {% if m==default_model %}selected{% endif %}>{{m}}</option>
-                    {% endfor %}
-                    </select>
-                </div>
-                </div>
-            </div> -->
-        <!-- </div> -->
+            </div>
 
-
-
-        <!-- Upload Section -->
-        <div class="bg-white rounded-2xl shadow-xl p-8 mb-8 border-t-4 border-coffee-500">
-            <div class="text-center">
-                <div id="upload-area"
-                    class="border-3 border-dashed border-coffee-300 rounded-xl p-12 transition-all duration-300 hover:border-coffee-500 hover:bg-coffee-50 cursor-pointer">
-                    <i class="fas fa-cloud-upload-alt text-6xl text-coffee-400 mb-4"></i>
-                    <h3 class="text-2xl font-semibold text-coffee-700 mb-2">Upload Your Coffee Bean Image</h3>
-                    <p class="text-coffee-500 mb-6">Drag and drop your image here or click the button to browse</p>
-                    <input type="file" id="file-input" accept="image/*" class="hidden" multiple>
-                    <button id="browse-btn"
-                        class="bg-coffee-500 hover:bg-coffee-600 text-white px-8 py-3 rounded-lg font-semibold transition-colors duration-200 shadow-lg">
-                        <i class="fas fa-folder-open mr-2"></i>
-                        Browse Files
-                    </button>
-                </div>
-
-                <!-- Loading Spinner -->
-                <div id="loading" class="hidden mt-8">
-                    <div class="flex justify-center items-center">
-                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-coffee-500"></div>
-                        <span class="ml-3 text-coffee-600 font-semibold">Analyzing your coffee beans...</span>
+            <!-- Error Message -->
+            <div id="error-message" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-lg mt-6 animate-slide-up">
+                <div class="flex items-center">
+                    <i class="fas fa-exclamation-triangle text-xl mr-3"></i>
+                    <div>
+                        <h4 class="font-semibold">Error</h4>
+                        <p id="error-text"></p>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Results Section -->
-        <div id="results" class="hidden space-y-6"></div>
-
-        <!-- Error Section -->
-        <div id="error-message"
-            class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-lg">
-            <div class="flex items-center">
-                <i class="fas fa-exclamation-triangle text-xl mr-3"></i>
-                <div>
-                    <h4 class="font-semibold">Error</h4>
-                    <p id="error-text"></p>
+        <div id="results" class="hidden mt-8 animate-slide-up">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-coffee-800">
+                    <i class="fas fa-chart-bar mr-2"></i>Analysis Results
+                </h2>
+                <button id="analyze-another" class="bg-coffee-500 hover:bg-coffee-600 text-white px-6 py-2 rounded-lg font-semibold shadow-lg transition-all duration-300 transform hover:scale-105">
+                    <i class="fas fa-plus mr-2"></i>Analyze Another
+                </button>
+            </div>
+            <div class="grid gap-8" id="results-container"></div>
+            
+            <!-- Model Info -->
+            <div class="mt-8 bg-gradient-to-r from-coffee-100 to-coffee-150 rounded-2xl p-6 border border-coffee-200">
+                <div class="flex items-center justify-center text-center">
+                    <div class="mr-4">
+                        <i class="fas fa-info-circle text-coffee-500 text-2xl"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold text-coffee-800">Model Information</h4>
+                        <p class="text-coffee-600 text-sm">
+                            Classification powered by TensorFlow DenseNet trained on thousands of coffee bean images
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    </main>
 
     <!-- Footer -->
-    <footer class="bg-coffee-800 text-coffee-100 py-8 mt-12">
-        <div class="container mx-auto px-4 text-center">
-            <p class="text-lg">
-                <i class="fas fa-coffee mr-2"></i>
-                Powered by Deep Learning & TensorFlow
-            </p>
-            <p class="text-coffee-300 mt-2">Quality coffee starts with quality beans</p>
-        </div>
+    <footer class="bg-coffee-800 text-coffee-100 py-8 mt-12 text-center">
+        <p class="text-lg"><i class="fas fa-coffee mr-2"></i>Powered by Deep Learning & TensorFlow</p>
+        <p class="text-coffee-300 mt-2">Quality coffee starts with quality beans</p>
     </footer>
 
     <script>
@@ -138,192 +174,225 @@
         const uploadArea = document.getElementById('upload-area');
         const browseBtn = document.getElementById('browse-btn');
         const loading = document.getElementById('loading');
-        const results = document.getElementById('results');
+        const loadingText = document.getElementById('loading-text');
+        const progressBar = document.getElementById('progress-bar');
         const errorMessage = document.getElementById('error-message');
+        const resultsDiv = document.getElementById('results');
+        const resultsContainer = document.getElementById('results-container');
+        const analyzeAnotherBtn = document.getElementById('analyze-another');
 
+        // Loading states
+        const loadingStates = [
+            { text: "Preprocessing images", progress: 20 },
+            { text: "Loading neural network", progress: 40 },
+            { text: "Extracting features", progress: 60 },
+            { text: "Running classification", progress: 80 },
+            { text: "Finalizing results", progress: 100 }
+        ];
+
+        // Open file dialog on browse button click
         browseBtn.addEventListener('click', (e) => {
             e.preventDefault();
             fileInput.click();
         });
-        fileInput.addEventListener('change', handleFileSelect);
 
-        uploadArea.addEventListener('dragover', (e) => {
+        // Analyze another button
+        analyzeAnotherBtn.addEventListener('click', () => {
+            hideResults();
+            hideError();
+            fileInput.value = '';
+            uploadArea.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        // Drag & drop events
+        uploadArea.addEventListener('dragover', e => {
             e.preventDefault();
             uploadArea.classList.add('border-coffee-500', 'bg-coffee-50');
         });
-        uploadArea.addEventListener('dragleave', (e) => {
+        uploadArea.addEventListener('dragleave', e => {
             e.preventDefault();
             uploadArea.classList.remove('border-coffee-500', 'bg-coffee-50');
         });
-        uploadArea.addEventListener('drop', (e) => {
+        uploadArea.addEventListener('drop', e => {
             e.preventDefault();
             uploadArea.classList.remove('border-coffee-500', 'bg-coffee-50');
-            const files = Array.from(e.dataTransfer.files);
-            if (files.length > 0) handleFiles(files);
+            handleFiles(Array.from(e.dataTransfer.files));
         });
 
-        function handleFileSelect(e) {
-            const files = Array.from(e.target.files);
-            if (files.length > 0) handleFiles(files);
-        }
+        // Click on empty area opens file dialog (not button)
+        uploadArea.addEventListener('click', (e) => {
+            if (e.target !== browseBtn) {
+                fileInput.click();
+            }
+        });
+
+        // File input change
+        fileInput.addEventListener('change', e => {
+            handleFiles(Array.from(e.target.files));
+        });
 
         function handleFiles(files) {
             hideError();
             hideResults();
-            showLoading();
+            if (!files.length) return;
 
+            const validFiles = [];
+            const invalidFiles = [];
+
+            files.forEach(file => {
+                if (!file.type.startsWith('image/')) invalidFiles.push(`${file.name}: Invalid type`);
+                else if (file.size > 16 * 1024 * 1024) invalidFiles.push(`${file.name}: File too large`);
+                else validFiles.push(file);
+            });
+
+            if (invalidFiles.length) showError(invalidFiles.join('\n'));
+            if (!validFiles.length) return;
+
+            uploadFiles(validFiles);
+        }
+
+        function uploadFiles(files) {
+            showLoading();
+            simulateLoadingProgress();
+            
             const formData = new FormData();
             files.forEach(file => formData.append('files', file));
 
-            // ADD THIS LINE: send the selected model
-            const selectedModel = document.getElementById('model-dropdown').value;
-            formData.append('model_name', selectedModel);
-
             fetch('/predict', { method: 'POST', body: formData })
-                .then(r => r.json())
+                .then(res => res.json())
                 .then(data => {
-                    hideLoading();
-                    fileInput.value = ''; // reset input after processing
-                    if (data.error) {
-                        showError(data.error);
-                    } else {
-                        showResults(data.results);
-                    }
+                    // Add a small delay to show completion
+                    setTimeout(() => {
+                        hideLoading();
+                        if (data.error) showError(data.error);
+                        else showResults(data);
+                    }, 500);
                 })
                 .catch(err => {
                     hideLoading();
-                    showError('An error occurred while processing your images. Please try again.');
+                    showError('Error processing images. Please try again.');
+                    console.error(err);
                 });
         }
 
+        function simulateLoadingProgress() {
+            let currentState = 0;
+            const interval = setInterval(() => {
+                if (currentState < loadingStates.length) {
+                    const state = loadingStates[currentState];
+                    loadingText.textContent = state.text;
+                    progressBar.style.width = `${state.progress}%`;
+                    currentState++;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 800);
+        }
 
-        function showResults(resultsData) {
-            results.innerHTML = '';
-            resultsData.forEach(res => {
-                const el = createResultElement(res);
-                results.appendChild(el);
+        function showResults(data) {
+            resultsContainer.innerHTML = '';
+            data.results.forEach((result, index) => {
+                const div = document.createElement('div');
+                div.className = 'bg-white rounded-2xl shadow-xl p-6 border-t-4 border-coffee-500 grid md:grid-cols-2 gap-6 animate-slide-up';
+                div.style.animationDelay = `${index * 0.1}s`;
+
+                if (result.error) {
+                    div.innerHTML = `
+                        <div class="flex items-center space-x-4">
+                            <i class="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
+                            <div>
+                                <h3 class="font-semibold text-coffee-800">${result.filename}</h3>
+                                <p class="text-red-600">${result.error}</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const confidencePercent = parseFloat(result.confidence);
+                    const isGoodBean = result.predicted_class === 'Good Coffee Bean';
+                    
+                    div.innerHTML = `
+                        <div class="text-center">
+                            <h3 class="text-lg font-semibold text-coffee-700 mb-3">
+                                <i class="fas fa-image mr-2"></i>${result.filename}
+                            </h3>
+                            <div class="bg-coffee-50 rounded-xl p-4 shadow-inner">
+                                <img src="${result.image}" class="max-w-full h-auto rounded-lg mx-auto max-h-64 shadow-md">
+                            </div>
+                        </div>
+                        <div class="flex flex-col justify-center">
+                            <div class="bg-gradient-to-br from-coffee-50 to-coffee-100 rounded-xl p-6 shadow-inner space-y-6">
+                                <div class="text-center">
+                                    <div class="mb-4">
+                                        <i class="fas ${isGoodBean ? 'fa-check-circle text-green-500' : 'fa-times-circle text-red-500'} text-4xl"></i>
+                                    </div>
+                                    <span class="font-bold text-xl px-4 py-2 rounded-full ${isGoodBean ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-red-100 text-red-800 border border-red-300'}">
+                                        ${result.predicted_class}
+                                    </span>
+                                </div>
+                                
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center">
+                                        <span class="font-medium text-coffee-600">
+                                            <i class="fas fa-percentage mr-2"></i>Confidence:
+                                        </span>
+                                        <span class="font-bold text-coffee-800">${result.confidence}</span>
+                                    </div>
+                                    <div class="relative">
+                                        <div class="w-full bg-coffee-200 rounded-full h-3 overflow-hidden shadow-inner">
+                                            <div class="progress-bar bg-gradient-to-r from-coffee-500 to-coffee-600 h-3 rounded-full shadow-sm" 
+                                                 style="width: 0%; --progress-width: ${confidencePercent}%"></div>
+                                        </div>
+                                        <div class="absolute inset-0 rounded-full border border-coffee-300"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-center pt-4 border-t border-coffee-200">
+                                    <p class="text-sm text-coffee-600">
+                                        <i class="fas fa-lightbulb mr-1"></i>
+                                        ${isGoodBean ? 
+                                            'These beans appear to be high quality!' : 
+                                            'These beans may have quality issues.'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                resultsContainer.appendChild(div);
             });
-            results.classList.remove('hidden');
-            results.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        function createResultElement(result) {
-            const div = document.createElement('div');
-            div.className = 'bg-white rounded-2xl shadow-xl overflow-hidden border-t-4 border-coffee-500 p-6';
-
-            if (result.error) {
-                div.innerHTML = `
-          <div class="flex items-center space-x-4">
-            <i class="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
-            <div>
-              <h3 class="font-semibold text-coffee-800 mb-1">${result.filename}</h3>
-              <p class="text-red-600">${result.error}</p>
-            </div>
-          </div>`;
-                return div;
-            }
-
-            const confidencePercent = parseFloat(result.confidence);
-            const confidenceClass =
-                result.predicted_class === 'Good Coffee Bean'
-                    ? 'text-green-800 bg-green-100'
-                    : 'text-red-800 bg-red-100';
-
-            div.innerHTML = `
-        <div class="grid md:grid-cols-2 gap-6">
-          <div class="text-center">
-            <h3 class="text-lg font-semibold text-coffee-700 mb-3">${result.filename}</h3>
-            <div class="bg-coffee-50 rounded-lg p-4 shadow-inner">
-              <img src="${result.image}" class="max-w-full h-auto rounded-lg shadow-md mx-auto max-h-64" alt="">
-            </div>
-          </div>
-          <div class="flex flex-col justify-center">
-            <div class="bg-gradient-to-r from-coffee-100 to-coffee-150 rounded-xl p-6 shadow-inner space-y-4">
-              <h4 class="text-xl font-semibold text-coffee-700 text-center mb-4">
-                <i class="fas fa-microscope mr-2"></i>Prediction Results
-              </h4>
-              <div class="bg-white rounded-lg p-4 shadow-sm">
-                <div class="flex justify-between items-center">
-                  <span class="font-medium text-coffee-600">Classification:</span>
-                  <span class="font-bold text-sm px-3 py-1 rounded-full ${confidenceClass}">${result.predicted_class}</span>
-                </div>
-              </div>
-              <div class="bg-white rounded-lg p-4 shadow-sm">
-                <div class="flex justify-between items-center mb-2">
-                  <span class="font-medium text-coffee-600">Confidence:</span>
-                  <span class="font-bold text-coffee-800">${result.confidence}</span>
-                </div>
-                <div class="w-full bg-coffee-200 rounded-full h-2">
-                  <div class="bar-fill bg-gradient-to-r from-coffee-500 to-coffee-600 h-2 rounded-full transition-all duration-1000" style="width:0%"></div>
-                </div>
-              </div>
-            <div class="bg-white rounded-lg p-4 shadow-sm">
-                <div class="flex justify-between items-center">
-                    <span class="font-medium text-coffee-600">Model Used:</span>
-                    <span class="font-bold text-coffee-800">${result.model_used}</span>
-                </div>
-            </div>
-            </div>
-          </div>
-        </div>`;
-
-            // trigger animation on next frame
-            requestAnimationFrame(() => {
-                const fill = div.querySelector('.bar-fill');
-                fill.style.width = confidencePercent + '%';
-            });
-
-            return div;
-        }
-
-        function showLoading() { loading.classList.remove('hidden'); }
-        function hideLoading() { loading.classList.add('hidden'); }
-        function showError(msg) {
-            document.getElementById('error-text').textContent = msg;
-            errorMessage.classList.remove('hidden');
-        }
-        function hideError() { errorMessage.classList.add('hidden'); }
-        function hideResults() { results.classList.add('hidden'); }
-
-        document.getElementById('model-dropdown').addEventListener('change', (e) => {
-            const selectedModel = e.target.value;
-            showToast(`Model switched to ${selectedModel}`, 'success');
-        });
-
-
-
-        function showToast(message, type = 'success') {
-            const toast = document.getElementById('toast');
-            const toastMsg = document.getElementById('toast-message');
-
-            // Set message
-            toastMsg.textContent = message;
-
-            // Set colors
-            if (type === 'success') {
-                toast.className = "fixed top-6 right-6 px-6 py-4 rounded-lg shadow-lg text-white z-50 bg-green-600";
-            } else if (type === 'error') {
-                toast.className = "fixed top-6 right-6 px-6 py-4 rounded-lg shadow-lg text-white z-50 bg-red-600";
-            }
-
-            // Show
-            toast.classList.remove('hidden');
-
-            // Hide after 3s
+            
+            resultsDiv.classList.remove('hidden');
+            
+            // Animate confidence bars after a delay
             setTimeout(() => {
-                toast.classList.add('hidden');
-            }, 3000);
+                document.querySelectorAll('.progress-bar').forEach(bar => {
+                    const width = bar.style.getPropertyValue('--progress-width');
+                    bar.style.width = width;
+                });
+            }, 300);
+            
+            setTimeout(() => {
+                resultsDiv.scrollIntoView({ behavior: 'smooth' });
+            }, 500);
         }
 
-
+        function showLoading() { 
+            loading.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            loadingText.textContent = 'Preprocessing images';
+        }
+        
+        function hideLoading() { loading.classList.add('hidden'); }
+        
+        function showError(msg) { 
+            document.getElementById('error-text').textContent = msg; 
+            errorMessage.classList.remove('hidden'); 
+        }
+        
+        function hideError() { errorMessage.classList.add('hidden'); }
+        
+        function hideResults() { resultsDiv.classList.add('hidden'); }
 
     </script>
-    <!-- Toast Notification -->
-    <div id="toast"
-        class="fixed top-6 right-6 hidden px-6 py-4 rounded-lg shadow-lg text-white z-50 transition-all duration-500 transform translate-y-0 opacity-100">
-        <span id="toast-message"></span>
-    </div>
-
 </body>
-
 </html>
