@@ -2,9 +2,9 @@ pip>=24.0
 setuptools>=65.0
 wheel
 
-Flask==3.0.3
 Werkzeug==3.0.3
-tensorflow==2.15.0     # works with python-3.11.x
-Pillow==10.3.0
-numpy==1.26.4
+tensorflow==2.20.0
+numpy
+Pillow
+flask
 gunicorn==21.2.0
