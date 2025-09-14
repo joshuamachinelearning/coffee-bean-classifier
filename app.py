@@ -20,7 +20,7 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE
 
 # Model configuration
-MODEL_PATH = "models/coffee_densenet201.h5"
+MODEL_PATH = "models/coffee_densenet121.h5"
 IMG_SIZE = 224
 CLASS_NAMES = ["Bad Coffee Bean", "Good Coffee Bean"]
 
