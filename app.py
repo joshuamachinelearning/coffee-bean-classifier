@@ -60,7 +60,7 @@ if PRODUCTION:
     tf.config.threading.set_intra_op_parallelism_threads(1)
 
 def load_model(model_name):
-    """Load model with error handling and caching logic"""
+    """Load model with error handling and compatibility fixes"""
     model_path = os.path.join(app.config['MODEL_FOLDER'], model_name)
     
     if not os.path.exists(model_path):
@@ -70,7 +70,8 @@ def load_model(model_name):
     if PRODUCTION:
         logger.info(f"Loading model {model_name} fresh for production...")
         try:
-            model = tf.keras.models.load_model(model_path)
+            # Try multiple loading strategies for compatibility
+            model = load_model_with_compatibility(model_path)
             return model
         except Exception as e:
             logger.error(f"Error loading model {model_name}: {str(e)}")
@@ -79,8 +80,62 @@ def load_model(model_name):
         # In development, use caching
         if model_name not in loaded_models:
             logger.info(f"Loading and caching model {model_name}...")
-            loaded_models[model_name] = tf.keras.models.load_model(model_path)
+            loaded_models[model_name] = load_model_with_compatibility(model_path)
         return loaded_models[model_name]
+
+def load_model_with_compatibility(model_path):
+    """Load model with various compatibility strategies"""
+    try:
+        # First try: Standard loading
+        logger.info("Attempting standard model loading...")
+        model = tf.keras.models.load_model(model_path)
+        logger.info("Model loaded successfully with standard method")
+        return model
+    except Exception as e:
+        logger.warning(f"Standard loading failed: {str(e)}")
+        
+        # Second try: Load with compile=False and recompile
+        try:
+            logger.info("Attempting to load model without compilation...")
+            model = tf.keras.models.load_model(model_path, compile=False)
+            
+            # Recompile the model
+            model.compile(
+                optimizer='adam',
+                loss='categorical_crossentropy',
+                metrics=['accuracy']
+            )
+            logger.info("Model loaded and recompiled successfully")
+            return model
+        except Exception as e2:
+            logger.warning(f"Loading without compilation failed: {str(e2)}")
+            
+            # Third try: Custom object loading
+            try:
+                logger.info("Attempting to load with custom objects...")
+                
+                # Define custom objects for compatibility
+                custom_objects = {
+                    'InputLayer': tf.keras.layers.InputLayer,
+                }
+                
+                model = tf.keras.models.load_model(
+                    model_path, 
+                    custom_objects=custom_objects,
+                    compile=False
+                )
+                
+                # Recompile
+                model.compile(
+                    optimizer='adam',
+                    loss='categorical_crossentropy',
+                    metrics=['accuracy']
+                )
+                logger.info("Model loaded with custom objects successfully")
+                return model
+            except Exception as e3:
+                logger.error(f"All loading strategies failed. Last error: {str(e3)}")
+                raise Exception(f"Could not load model {model_path}. Tried multiple strategies. Original error: {str(e)}")
 
 def allowed_file(filename):
     """Check if file extension is allowed"""

@@ -1,6 +1,7 @@
 Flask==2.3.3
 Werkzeug==2.3.7
-tensorflow==2.13.0
+tensorflow==2.15.0
 Pillow==10.0.0
 numpy==1.24.3
 gunicorn==21.2.0
+h5py==3.9.0
