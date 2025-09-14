@@ -6,6 +6,7 @@ from flask import Flask, request, render_template, jsonify
 from werkzeug.utils import secure_filename
 import tensorflow as tf
 from tensorflow.keras.applications.densenet import preprocess_input
+from tensorflow.keras import backend as K
 from PIL import Image
 
 app = Flask(__name__)
@@ -22,17 +23,14 @@ os.makedirs(app.config['MODEL_FOLDER'], exist_ok=True)
 
 # --- Models ---
 loaded_models = {}  # name -> tf.keras model
-DEFAULT_MODEL = 'coffee_densenet.h5'
+DEFAULT_MODEL = 'coffee_densenet121.h5'
 CLASS_LABELS = ['Bad Coffee Bean', 'Good Coffee Bean']
 
 def load_model(model_name):
-    """Lazy-load a model by name from models/"""
+    # no caching on low-RAM server
     path = os.path.join(app.config['MODEL_FOLDER'], model_name)
-    if model_name not in loaded_models:
-        print(f"Loading model {model_name} ...")
-        loaded_models[model_name] = tf.keras.models.load_model(path)
-        print(f"Loaded model {model_name}")
-    return loaded_models[model_name]
+    print(f"Loading model {model_name} fresh...")
+    return tf.keras.models.load_model(path)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
@@ -53,6 +51,7 @@ def predict_image(image_path, model_name):
         preds = model.predict(arr)
         cls = int(np.argmax(preds[0]))
         conf = float(preds[0][cls])
+        K.clear_session()  # free memory after each request
         return cls, conf, None
     except Exception as e:
         return None, None, f"Prediction error: {str(e)}"
