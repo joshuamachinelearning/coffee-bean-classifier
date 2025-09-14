@@ -68,13 +68,59 @@
                 <i class="fas fa-seedling text-coffee-600 mr-3"></i>
                 Coffee Bean Quality Classifier
             </h1>
-            <p class="text-coffee-600 text-lg mb-3">
+            <p class="text-coffee-600 text-lg mb-4">
                 Upload images to determine if your coffee beans are good or bad quality
             </p>
-            <div class="bg-coffee-50 inline-block px-4 py-2 rounded-full border border-coffee-200">
-                <i class="fas fa-brain text-coffee-500 mr-2"></i>
-                <span class="text-coffee-700 font-medium">Model: <span id="model-name">{{ model_name or 'DenseNet' }}</span></span>
-                <span class="text-coffee-500 ml-2">| Size: {{ img_size or 224 }}x{{ img_size or 224 }}</span>
+            
+            <!-- Model Selection Section -->
+            <div class="bg-coffee-50 inline-block px-6 py-4 rounded-xl border border-coffee-200 mb-4">
+                <div class="flex items-center justify-center space-x-4">
+                    <div>
+                        <label for="model-select" class="text-coffee-700 font-medium text-sm">Select Model:</label>
+                        <select id="model-select" class="ml-2 px-3 py-1 border border-coffee-300 rounded-lg text-coffee-700 bg-white focus:outline-none focus:ring-2 focus:ring-coffee-500">
+                            {% if available_models %}
+                                {% for model in available_models %}
+                                <option value="{{ model.filename }}" 
+                                        data-type="{{ model.type }}" 
+                                        data-size="{{ model.img_size }}"
+                                        {% if model.filename == current_model_name %}selected{% endif %}>
+                                    {{ model.name }} ({{ model.type|title }}, {{ model.img_size }}x{{ model.img_size }})
+                                </option>
+                                {% endfor %}
+                            {% else %}
+                                <option value="">No models found</option>
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div id="model-info" class="text-coffee-600">
+                        <i class="fas fa-brain text-coffee-500 mr-2"></i>
+                        <span class="font-medium">Current: <span id="current-model-display">{{ current_model_name or 'No model loaded' }}</span></span>
+                        {% if current_img_size %}
+                        <span class="text-coffee-500 ml-2">| Size: <span id="current-size-display">{{ current_img_size }}x{{ current_img_size }}</span></span>
+                        <span class="text-coffee-500 ml-2">| Type: <span id="current-type-display">{{ current_model_type|title or 'Unknown' }}</span></span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- No models warning -->
+                {% if not available_models %}
+                <div class="mt-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-lg">
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        <div>
+                            <p class="font-medium">No models found!</p>
+                            <p class="text-sm mt-1">Please place your model files (.h5 or .keras) in the 'models' directory.</p>
+                            <p class="text-xs mt-1 text-yellow-600">Expected: models/coffee_densenet169.h5, models/coffee_custom.keras, etc.</p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Model Loading Indicator -->
+            <div id="model-loading" class="hidden bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg mb-4 inline-block">
+                <i class="fas fa-spinner fa-spin mr-2"></i>
+                Loading model...
             </div>
         </div>
     </header>
@@ -86,7 +132,7 @@
                 <i class="fas fa-cloud-upload-alt text-6xl text-coffee-400 mb-4 transition-transform duration-300 hover:animate-bounce-gentle"></i>
                 <h3 class="text-2xl font-semibold text-coffee-700 mb-2">Upload Your Coffee Bean Images</h3>
                 <p class="text-coffee-500 mb-6">Drag and drop images here or click to browse</p>
-                <p class="text-sm text-coffee-400 mb-6">Supported formats: JPG, PNG, GIF • Max size: 16MB per file</p>
+                <p class="text-sm text-coffee-400 mb-6">Supported formats: JPG, PNG, GIF • Max size: 10MB per file</p>
                 <input type="file" id="file-input" accept="image/*" multiple class="hidden">
                 <button id="browse-btn" class="bg-coffee-500 hover:bg-coffee-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition-all duration-300 transform hover:scale-105">
                     <i class="fas fa-folder-open mr-2"></i>
@@ -154,13 +200,14 @@
                     <div class="mr-4">
                         <i class="fas fa-info-circle text-coffee-500 text-2xl"></i>
                     </div>
-                    <div>
+                    <div id="results-model-info">
                         <h4 class="font-semibold text-coffee-800">Model Information</h4>
                         <p class="text-coffee-600 text-sm">
-                            Classification powered by {{ model_name or 'DenseNet201' }} neural network
+                            Classification powered by <span id="results-model-name">{{ current_model_name or 'Unknown' }}</span> neural network
                         </p>
                         <p class="text-coffee-500 text-xs mt-1">
-                            Input size: {{ img_size or 224 }}x{{ img_size or 224 }} pixels
+                            Input size: <span id="results-model-size">{{ current_img_size or 224 }}x{{ current_img_size or 224 }}</span> pixels |
+                            Type: <span id="results-model-type">{{ current_model_type|title or 'Unknown' }}</span>
                         </p>
                     </div>
                 </div>
@@ -175,6 +222,7 @@
     </footer>
 
     <script>
+        // DOM elements
         const fileInput = document.getElementById('file-input');
         const uploadArea = document.getElementById('upload-area');
         const browseBtn = document.getElementById('browse-btn');
@@ -185,6 +233,13 @@
         const resultsDiv = document.getElementById('results');
         const resultsContainer = document.getElementById('results-container');
         const analyzeAnotherBtn = document.getElementById('analyze-another');
+        
+        // Model selection elements
+        const modelSelect = document.getElementById('model-select');
+        const modelLoading = document.getElementById('model-loading');
+        const currentModelDisplay = document.getElementById('current-model-display');
+        const currentSizeDisplay = document.getElementById('current-size-display');
+        const currentTypeDisplay = document.getElementById('current-type-display');
 
         // Loading states
         const loadingStates = [
@@ -194,6 +249,53 @@
             { text: "Running classification", progress: 80 },
             { text: "Finalizing results", progress: 100 }
         ];
+
+        // Model selection handler
+        modelSelect.addEventListener('change', async function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const modelFilename = selectedOption.value;
+            const modelType = selectedOption.dataset.type;
+            const modelSize = selectedOption.dataset.size;
+            
+            if (!modelFilename) return;
+            
+            // Show loading
+            modelLoading.classList.remove('hidden');
+            modelSelect.disabled = true;
+            
+            try {
+                const response = await fetch('/api/select-model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model_filename: modelFilename
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update display
+                    currentModelDisplay.textContent = data.model.name;
+                    currentSizeDisplay.textContent = `${data.model.img_size}x${data.model.img_size}`;
+                    currentTypeDisplay.textContent = data.model.type.charAt(0).toUpperCase() + data.model.type.slice(1);
+                    
+                    // Clear any previous results
+                    hideResults();
+                    hideError();
+                } else {
+                    showError(data.error || 'Failed to load model');
+                }
+            } catch (error) {
+                console.error('Error selecting model:', error);
+                showError('Network error when loading model');
+            } finally {
+                modelLoading.classList.add('hidden');
+                modelSelect.disabled = false;
+            }
+        });
 
         // Open file dialog on browse button click
         browseBtn.addEventListener('click', (e) => {
@@ -247,8 +349,8 @@
             files.forEach(file => {
                 if (!file.type.startsWith('image/')) {
                     invalidFiles.push(`${file.name}: Invalid file type`);
-                } else if (file.size > 16 * 1024 * 1024) {
-                    invalidFiles.push(`${file.name}: File too large (max 16MB)`);
+                } else if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                    invalidFiles.push(`${file.name}: File too large (max 10MB)`);
                 } else {
                     validFiles.push(file);
                 }
@@ -288,6 +390,10 @@
                         showError(data.error);
                     } else {
                         showResults(data);
+                        // Update model info in results
+                        if (data.model_info) {
+                            updateResultsModelInfo(data.model_info);
+                        }
                     }
                 }, 500);
             })
@@ -310,6 +416,16 @@
                     clearInterval(interval);
                 }
             }, 800);
+        }
+
+        function updateResultsModelInfo(modelInfo) {
+            const modelNameEl = document.getElementById('results-model-name');
+            const modelSizeEl = document.getElementById('results-model-size');
+            const modelTypeEl = document.getElementById('results-model-type');
+            
+            if (modelNameEl) modelNameEl.textContent = modelInfo.name;
+            if (modelSizeEl) modelSizeEl.textContent = `${modelInfo.img_size}x${modelInfo.img_size}`;
+            if (modelTypeEl) modelTypeEl.textContent = modelInfo.type.charAt(0).toUpperCase() + modelInfo.type.slice(1);
         }
 
         function showResults(data) {
@@ -422,6 +538,21 @@
         function hideResults() { 
             resultsDiv.classList.add('hidden'); 
         }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Fetch current model info on page load
+            fetch('/api/model-info')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.model_loaded) {
+                        currentModelDisplay.textContent = data.model_name;
+                        currentSizeDisplay.textContent = `${data.img_size}x${data.img_size}`;
+                        currentTypeDisplay.textContent = data.model_type ? data.model_type.charAt(0).toUpperCase() + data.model_type.slice(1) : 'Unknown';
+                    }
+                })
+                .catch(err => console.error('Error fetching model info:', err));
+        });
     </script>
 </body>
 </html>
