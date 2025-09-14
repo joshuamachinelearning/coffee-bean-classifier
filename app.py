@@ -79,9 +79,12 @@ def home():
                          model_name=get_model_name(), 
                          img_size=IMG_SIZE)
 
+from io import BytesIO
+from PIL import Image
+
 @app.route("/predict", methods=["POST"])
 def predict():
-    """Handle image prediction requests"""
+    """Handle image prediction requests (optimized for CPU and in-memory processing)"""
     if model is None:
         return jsonify({"error": "Model not available. Please try again later."}), 503
 
@@ -97,99 +100,84 @@ def predict():
         return jsonify({"error": "Maximum 5 files allowed per request"}), 400
 
     results = []
-    processed_count = 0
+    batch_images = []
+    valid_files = []
 
+    # Preprocess images in memory
     for f in files:
         if f.filename == "":
             continue
 
         filename = secure_filename(f.filename)
-        if not filename:
+        if not filename or not allowed_file(filename):
             results.append({
-                "filename": f.filename, 
-                "error": "Invalid filename"
+                "filename": f.filename,
+                "error": "Invalid file or unsupported type"
             })
             continue
 
-        if not allowed_file(filename):
-            results.append({
-                "filename": filename, 
-                "error": "Invalid file type. Supported: PNG, JPG, JPEG, GIF"
-            })
-            continue
-
-        # Use temporary file for processing (better for production)
-        try:
-            with tempfile.NamedTemporaryFile(suffix=f'.{filename.rsplit(".", 1)[1].lower()}', delete=False) as tmp_file:
-                f.save(tmp_file.name)
-                tmp_path = tmp_file.name
-
-            # Check file size
-            if os.path.getsize(tmp_path) > MAX_FILE_SIZE:
-                os.unlink(tmp_path)
-                results.append({
-                    "filename": filename,
-                    "error": "File too large (max 10MB)"
-                })
-                continue
-
-            print(f"[INFO] Processing file: {filename}")
-
-            # Prepare image for prediction
-            img_array = prepare_image(tmp_path, target_size=(IMG_SIZE, IMG_SIZE))
-            print(f"[INFO] Image shape: {img_array.shape}")
-
-            # Make prediction with memory optimization
-            with tf.device('/CPU:0'):  # Force CPU usage for free tier stability
-                preds = model.predict(img_array, verbose=0, batch_size=1)
-            
-            print(f"[INFO] Raw predictions: {preds}")
-
-            # Process prediction results
-            class_idx = np.argmax(preds, axis=1)[0]
-            predicted_class = CLASS_NAMES[class_idx]
-            confidence = float(np.max(preds)) * 100
-            
-            print(f"[INFO] Predicted: {predicted_class} ({confidence:.2f}%)")
-
-            # Encode image for frontend display
-            img_encoded = encode_image(tmp_path)
-
+        # Check file size
+        f.seek(0, os.SEEK_END)
+        size = f.tell()
+        f.seek(0)
+        if size > MAX_FILE_SIZE:
             results.append({
                 "filename": filename,
-                "success": True,
-                "predicted_class": predicted_class,
-                "confidence": f"{confidence:.1f}",
-                "image": img_encoded
+                "error": "File too large (max 10MB)"
             })
-            
-            processed_count += 1
+            continue
 
+        try:
+            # Load image in memory
+            img = Image.open(f).convert("RGB").resize((IMG_SIZE, IMG_SIZE))
+            img_array = np.expand_dims(np.array(img), axis=0)
+            img_array = preprocess_input(img_array)
+            batch_images.append(img_array)
+            valid_files.append((filename, img))
         except Exception as e:
-            print(f"[ERROR] Failed to process {filename}: {str(e)}")
-            traceback.print_exc()
-            
             results.append({
-                "filename": filename, 
-                "error": f"Processing failed: {str(e)}"
+                "filename": filename,
+                "error": f"Failed to process image: {str(e)}"
             })
 
-        finally:
-            # Always clean up temporary file
-            try:
-                if 'tmp_path' in locals() and os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-            except Exception as cleanup_error:
-                print(f"[WARNING] Failed to cleanup {tmp_path}: {cleanup_error}")
+    if not batch_images:
+        return jsonify({
+            "results": results,
+            "total_files": len(files),
+            "processed_files": 0,
+            "success": False
+        })
 
-    # Clear TensorFlow session to free memory
-    tf.keras.backend.clear_session()
+    # Stack images into one batch
+    batch_array = np.vstack(batch_images)
+
+    # Predict in one call (CPU-friendly)
+    preds = model.predict(batch_array, verbose=0, batch_size=1)
+
+    for i, (filename, img) in enumerate(valid_files):
+        class_idx = np.argmax(preds[i])
+        predicted_class = CLASS_NAMES[class_idx]
+        confidence = float(np.max(preds[i])) * 100
+
+        # Encode image to base64 for frontend
+        buffered = BytesIO()
+        img.save(buffered, format="JPEG")
+        img_encoded = base64.b64encode(buffered.getvalue()).decode()
+        img_data = f"data:image/jpeg;base64,{img_encoded}"
+
+        results.append({
+            "filename": filename,
+            "success": True,
+            "predicted_class": predicted_class,
+            "confidence": f"{confidence:.1f}",
+            "image": img_data
+        })
 
     return jsonify({
         "results": results,
-        "total_files": len([f for f in files if f.filename != ""]),
-        "processed_files": processed_count,
-        "success": processed_count > 0
+        "total_files": len(files),
+        "processed_files": len(valid_files),
+        "success": True
     })
 
 @app.route("/api/model-info")
