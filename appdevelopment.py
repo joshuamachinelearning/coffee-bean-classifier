@@ -21,7 +21,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE
 
 # Model configuration - adjust these paths as needed
-MODEL_PATH = "models/coffee_densenet121.h5"
+MODEL_PATH = "models/coffee_densenet121.keras"
 IMG_SIZE = 224
 CLASS_NAMES = ["Bad Coffee Bean", "Good Coffee Bean"]
 
