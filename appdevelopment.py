@@ -1,7 +1,6 @@
 import os
 import base64
 import traceback
-import tempfile
 from flask import Flask, request, render_template, jsonify
 from werkzeug.utils import secure_filename
 import tensorflow as tf
@@ -13,30 +12,26 @@ import numpy as np
 # ------------------------------
 # CONFIG
 # ------------------------------
+UPLOAD_FOLDER = "static/uploads"
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # Reduced to 10MB for free tier
+MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
 
 app = Flask(__name__)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE
 
-# Model configuration
-MODEL_PATH = "models/coffee_densenet201.h5"
+# Model configuration - adjust these paths as needed
+MODEL_PATH = "models/coffee_densenet121.h5"
 IMG_SIZE = 224
 CLASS_NAMES = ["Bad Coffee Bean", "Good Coffee Bean"]
 
-# Load model with error handling for production
-model = None
+# Load model
 try:
-    if os.path.exists(MODEL_PATH):
-        # Optimize for memory usage on free tier
-        tf.keras.backend.clear_session()
-        model = load_model(MODEL_PATH, compile=False)
-        print(f"[INFO] Successfully loaded model: {MODEL_PATH}")
-    else:
-        print(f"[ERROR] Model file not found: {MODEL_PATH}")
+    model = load_model(MODEL_PATH)
+    print(f"[INFO] Successfully loaded model: {MODEL_PATH}")
 except Exception as e:
     print(f"[ERROR] Failed to load model: {e}")
-    traceback.print_exc()
+    model = None
 
 # ------------------------------
 # HELPER FUNCTIONS
@@ -83,7 +78,7 @@ def home():
 def predict():
     """Handle image prediction requests"""
     if model is None:
-        return jsonify({"error": "Model not available. Please try again later."}), 503
+        return jsonify({"error": "Model not loaded. Please check server logs."}), 500
 
     if "files" not in request.files:
         return jsonify({"error": "No files uploaded"}), 400
@@ -91,10 +86,6 @@ def predict():
     files = request.files.getlist("files")
     if not files or all(f.filename == "" for f in files):
         return jsonify({"error": "No files selected"}), 400
-
-    # Limit number of files for free tier
-    if len(files) > 5:
-        return jsonify({"error": "Maximum 5 files allowed per request"}), 400
 
     results = []
     processed_count = 0
@@ -118,31 +109,30 @@ def predict():
             })
             continue
 
-        # Use temporary file for processing (better for production)
-        try:
-            with tempfile.NamedTemporaryFile(suffix=f'.{filename.rsplit(".", 1)[1].lower()}', delete=False) as tmp_file:
-                f.save(tmp_file.name)
-                tmp_path = tmp_file.name
+        # Create upload directory if it doesn't exist
+        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+        save_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
 
-            # Check file size
-            if os.path.getsize(tmp_path) > MAX_FILE_SIZE:
-                os.unlink(tmp_path)
+        try:
+            # Save the uploaded file
+            f.save(save_path)
+            print(f"[INFO] Saved file to {save_path}")
+
+            # Check file size after saving
+            if os.path.getsize(save_path) > MAX_FILE_SIZE:
+                os.remove(save_path)  # Clean up
                 results.append({
                     "filename": filename,
-                    "error": "File too large (max 10MB)"
+                    "error": "File too large (max 16MB)"
                 })
                 continue
 
-            print(f"[INFO] Processing file: {filename}")
-
             # Prepare image for prediction
-            img_array = prepare_image(tmp_path, target_size=(IMG_SIZE, IMG_SIZE))
-            print(f"[INFO] Image shape: {img_array.shape}")
+            img_array = prepare_image(save_path, target_size=(IMG_SIZE, IMG_SIZE))
+            print(f"[INFO] Image shape after preprocessing: {img_array.shape}")
 
-            # Make prediction with memory optimization
-            with tf.device('/CPU:0'):  # Force CPU usage for free tier stability
-                preds = model.predict(img_array, verbose=0, batch_size=1)
-            
+            # Make prediction
+            preds = model.predict(img_array, verbose=0)
             print(f"[INFO] Raw predictions: {preds}")
 
             # Process prediction results
@@ -153,7 +143,7 @@ def predict():
             print(f"[INFO] Predicted: {predicted_class} ({confidence:.2f}%)")
 
             # Encode image for frontend display
-            img_encoded = encode_image(tmp_path)
+            img_encoded = encode_image(save_path)
 
             results.append({
                 "filename": filename,
@@ -165,25 +155,27 @@ def predict():
             
             processed_count += 1
 
+            # Clean up uploaded file after processing
+            try:
+                os.remove(save_path)
+            except:
+                pass  # File cleanup is not critical
+
         except Exception as e:
             print(f"[ERROR] Failed to process {filename}: {str(e)}")
             traceback.print_exc()
             
+            # Clean up file if it exists
+            try:
+                if os.path.exists(save_path):
+                    os.remove(save_path)
+            except:
+                pass
+
             results.append({
                 "filename": filename, 
                 "error": f"Processing failed: {str(e)}"
             })
-
-        finally:
-            # Always clean up temporary file
-            try:
-                if 'tmp_path' in locals() and os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-            except Exception as cleanup_error:
-                print(f"[WARNING] Failed to cleanup {tmp_path}: {cleanup_error}")
-
-    # Clear TensorFlow session to free memory
-    tf.keras.backend.clear_session()
 
     return jsonify({
         "results": results,
@@ -204,9 +196,9 @@ def model_info():
 
 @app.route("/health")
 def health_check():
-    """Health check endpoint for monitoring"""
+    """Simple health check endpoint"""
     return jsonify({
-        "status": "healthy" if model is not None else "degraded",
+        "status": "healthy",
         "model_loaded": model is not None,
         "model_path": MODEL_PATH
     })
@@ -217,7 +209,7 @@ def health_check():
 @app.errorhandler(413)
 def too_large(e):
     """Handle file too large error"""
-    return jsonify({"error": "File too large (max 10MB)"}), 413
+    return jsonify({"error": "File too large (max 16MB)"}), 413
 
 @app.errorhandler(500)
 def server_error(e):
@@ -225,23 +217,18 @@ def server_error(e):
     print(f"[ERROR] Server error: {str(e)}")
     return jsonify({"error": "Internal server error"}), 500
 
-@app.errorhandler(503)
-def service_unavailable(e):
-    """Handle service unavailable errors"""
-    return jsonify({"error": "Service temporarily unavailable"}), 503
-
 # ------------------------------
-# PRODUCTION SETUP
+# RUN APP
 # ------------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    debug_mode = os.environ.get("FLASK_ENV") == "development"
-    
     print(f"[INFO] Starting Coffee Bean Quality Classifier")
     print(f"[INFO] Model path: {MODEL_PATH}")
     print(f"[INFO] Model loaded: {'Yes' if model is not None else 'No'}")
     print(f"[INFO] Image size: {IMG_SIZE}x{IMG_SIZE}")
-    print(f"[INFO] Running on port: {port}")
-    print(f"[INFO] Debug mode: {debug_mode}")
+    print(f"[INFO] Upload folder: {UPLOAD_FOLDER}")
     
-    app.run(host="0.0.0.0", port=port, debug=debug_mode)
+    # Create necessary directories
+    os.makedirs("templates", exist_ok=True)
+    os.makedirs("static/uploads", exist_ok=True)
+    
+    app.run(host="0.0.0.0", port=5000, debug=True)

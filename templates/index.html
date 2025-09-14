@@ -52,7 +52,6 @@
         }
     </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <style>
         .progress-bar {
             transition: width 1.5s cubic-bezier(0.4, 0.0, 0.2, 1);
@@ -73,7 +72,8 @@
             </p>
             <div class="bg-coffee-50 inline-block px-4 py-2 rounded-full border border-coffee-200">
                 <i class="fas fa-brain text-coffee-500 mr-2"></i>
-                <span class="text-coffee-700 font-medium">Powered by TensorFlow DenseNet</span>
+                <span class="text-coffee-700 font-medium">Model: <span id="model-name">{{ model_name or 'DenseNet' }}</span></span>
+                <span class="text-coffee-500 ml-2">| Size: {{ img_size or 224 }}x{{ img_size or 224 }}</span>
             </div>
         </div>
     </header>
@@ -85,6 +85,7 @@
                 <i class="fas fa-cloud-upload-alt text-6xl text-coffee-400 mb-4 transition-transform duration-300 hover:animate-bounce-gentle"></i>
                 <h3 class="text-2xl font-semibold text-coffee-700 mb-2">Upload Your Coffee Bean Images</h3>
                 <p class="text-coffee-500 mb-6">Drag and drop images here or click to browse</p>
+                <p class="text-sm text-coffee-400 mb-6">Supported formats: JPG, PNG, GIF • Max size: 16MB per file</p>
                 <input type="file" id="file-input" accept="image/*" multiple class="hidden">
                 <button id="browse-btn" class="bg-coffee-500 hover:bg-coffee-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg transition-all duration-300 transform hover:scale-105">
                     <i class="fas fa-folder-open mr-2"></i>
@@ -144,7 +145,7 @@
                     <i class="fas fa-plus mr-2"></i>Analyze Another
                 </button>
             </div>
-            <div class="grid gap-8" id="results-container"></div>
+            <div class="grid gap-6" id="results-container"></div>
             
             <!-- Model Info -->
             <div class="mt-8 bg-gradient-to-r from-coffee-100 to-coffee-150 rounded-2xl p-6 border border-coffee-200">
@@ -155,7 +156,10 @@
                     <div>
                         <h4 class="font-semibold text-coffee-800">Model Information</h4>
                         <p class="text-coffee-600 text-sm">
-                            Classification powered by TensorFlow DenseNet trained on thousands of coffee bean images
+                            Classification powered by {{ model_name or 'DenseNet201' }} neural network
+                        </p>
+                        <p class="text-coffee-500 text-xs mt-1">
+                            Input size: {{ img_size or 224 }}x{{ img_size or 224 }} pixels
                         </p>
                     </div>
                 </div>
@@ -165,7 +169,7 @@
 
     <!-- Footer -->
     <footer class="bg-coffee-800 text-coffee-100 py-8 mt-12 text-center">
-        <p class="text-lg"><i class="fas fa-coffee mr-2"></i>Powered by Deep Learning & TensorFlow</p>
+        <p class="text-lg"><i class="fas fa-coffee mr-2"></i>Powered by Deep Learning & Machine Learning</p>
         <p class="text-coffee-300 mt-2">Quality coffee starts with quality beans</p>
     </footer>
 
@@ -221,7 +225,7 @@
 
         // Click on empty area opens file dialog (not button)
         uploadArea.addEventListener('click', (e) => {
-            if (e.target !== browseBtn) {
+            if (e.target !== browseBtn && !browseBtn.contains(e.target)) {
                 fileInput.click();
             }
         });
@@ -240,12 +244,19 @@
             const invalidFiles = [];
 
             files.forEach(file => {
-                if (!file.type.startsWith('image/')) invalidFiles.push(`${file.name}: Invalid type`);
-                else if (file.size > 16 * 1024 * 1024) invalidFiles.push(`${file.name}: File too large`);
-                else validFiles.push(file);
+                if (!file.type.startsWith('image/')) {
+                    invalidFiles.push(`${file.name}: Invalid file type`);
+                } else if (file.size > 16 * 1024 * 1024) {
+                    invalidFiles.push(`${file.name}: File too large (max 16MB)`);
+                } else {
+                    validFiles.push(file);
+                }
             });
 
-            if (invalidFiles.length) showError(invalidFiles.join('\n'));
+            if (invalidFiles.length) {
+                showError(invalidFiles.join('\n'));
+            }
+            
             if (!validFiles.length) return;
 
             uploadFiles(validFiles);
@@ -258,21 +269,32 @@
             const formData = new FormData();
             files.forEach(file => formData.append('files', file));
 
-            fetch('/predict', { method: 'POST', body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    // Add a small delay to show completion
-                    setTimeout(() => {
-                        hideLoading();
-                        if (data.error) showError(data.error);
-                        else showResults(data);
-                    }, 500);
-                })
-                .catch(err => {
+            fetch('/predict', { 
+                method: 'POST', 
+                body: formData 
+            })
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+            })
+            .then(data => {
+                // Add a small delay to show completion
+                setTimeout(() => {
                     hideLoading();
-                    showError('Error processing images. Please try again.');
-                    console.error(err);
-                });
+                    if (data.error) {
+                        showError(data.error);
+                    } else {
+                        showResults(data);
+                    }
+                }, 500);
+            })
+            .catch(err => {
+                hideLoading();
+                showError('Error processing images. Please try again.');
+                console.error('Upload error:', err);
+            });
         }
 
         function simulateLoadingProgress() {
@@ -291,6 +313,7 @@
 
         function showResults(data) {
             resultsContainer.innerHTML = '';
+            
             data.results.forEach((result, index) => {
                 const div = document.createElement('div');
                 div.className = 'bg-white rounded-2xl shadow-xl p-6 border-t-4 border-coffee-500 grid md:grid-cols-2 gap-6 animate-slide-up';
@@ -298,7 +321,7 @@
 
                 if (result.error) {
                     div.innerHTML = `
-                        <div class="flex items-center space-x-4">
+                        <div class="md:col-span-2 flex items-center space-x-4">
                             <i class="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
                             <div>
                                 <h3 class="font-semibold text-coffee-800">${result.filename}</h3>
@@ -316,7 +339,7 @@
                                 <i class="fas fa-image mr-2"></i>${result.filename}
                             </h3>
                             <div class="bg-coffee-50 rounded-xl p-4 shadow-inner">
-                                <img src="${result.image}" class="max-w-full h-auto rounded-lg mx-auto max-h-64 shadow-md">
+                                <img src="${result.image}" class="max-w-full h-auto rounded-lg mx-auto max-h-64 shadow-md" alt="Uploaded coffee bean image">
                             </div>
                         </div>
                         <div class="flex flex-col justify-center">
@@ -335,7 +358,7 @@
                                         <span class="font-medium text-coffee-600">
                                             <i class="fas fa-percentage mr-2"></i>Confidence:
                                         </span>
-                                        <span class="font-bold text-coffee-800">${result.confidence}</span>
+                                        <span class="font-bold text-coffee-800">${result.confidence}%</span>
                                     </div>
                                     <div class="relative">
                                         <div class="w-full bg-coffee-200 rounded-full h-3 overflow-hidden shadow-inner">
@@ -382,17 +405,22 @@
             loadingText.textContent = 'Preprocessing images';
         }
         
-        function hideLoading() { loading.classList.add('hidden'); }
+        function hideLoading() { 
+            loading.classList.add('hidden'); 
+        }
         
         function showError(msg) { 
             document.getElementById('error-text').textContent = msg; 
             errorMessage.classList.remove('hidden'); 
         }
         
-        function hideError() { errorMessage.classList.add('hidden'); }
+        function hideError() { 
+            errorMessage.classList.add('hidden'); 
+        }
         
-        function hideResults() { resultsDiv.classList.add('hidden'); }
-
+        function hideResults() { 
+            resultsDiv.classList.add('hidden'); 
+        }
     </script>
 </body>
 </html>
